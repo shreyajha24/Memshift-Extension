@@ -1,0 +1,29 @@
+project_id = "memshift"
+
+[api]
+port = 54321
+extra_search_path = ["public", "extensions"]
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.pooler]
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[studio]
+port = 54323
+
+[auth]
+site_url = "https://memshift.app"
+additional_redirect_urls = ["https://*.chromiumapp.org/*"]
+jwt_expiry = 3600
+enable_signup = true
+
+[edge_runtime]
+enabled = true
+port = 54324
