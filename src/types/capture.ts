@@ -33,6 +33,10 @@ export interface CaptureIntelligence {
   matchedKeywords: string[];
   topicCandidates: string[];
   subtopics: string[];
+  // concepts (ids) detected for this capture
+  concepts?: string[];
+  // inferred parent topic names
+  parentTopics?: string[];
 }
 
 export interface CapturePrivacy {
