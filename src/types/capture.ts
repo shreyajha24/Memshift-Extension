@@ -26,6 +26,11 @@ export interface CaptureMetadata {
   publishedAt?: string;
   description?: string;
   domain?: string;
+  siteName?: string;
+  contentType?: string;
+  extractionMethod?: string;
+  extractionStatus?: string;
+  extractionMetadata?: Record<string, unknown>;
 }
 
 export interface CaptureEngagement {

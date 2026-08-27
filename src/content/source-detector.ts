@@ -1,9 +1,11 @@
 import { SourceType, PlatformType } from '../types/source';
+import { PageContentType } from './extraction/types';
 
 export interface SourceDetectionResult {
   sourceType: SourceType;
   platform: PlatformType | string;
   isSpecificExtractorAvailable: boolean;
+  pageType: PageContentType;
 }
 
 export class SourceDetector {
@@ -16,6 +18,15 @@ export class SourceDetector {
       const hostname = urlObj.hostname.toLowerCase();
       const pathname = urlObj.pathname.toLowerCase();
 
+      if (pathname.endsWith('.pdf')) {
+        return {
+          sourceType: 'generic',
+          platform: 'PDF',
+          isSpecificExtractorAvailable: false,
+          pageType: 'pdf',
+        };
+      }
+
       // 1. YouTube Detection
       if (
         hostname.includes('youtube.com') ||
@@ -26,6 +37,7 @@ export class SourceDetector {
           sourceType: 'youtube',
           platform: 'YouTube',
           isSpecificExtractorAvailable: true,
+          pageType: 'youtube',
         };
       }
 
@@ -35,15 +47,55 @@ export class SourceDetector {
           sourceType: 'github',
           platform: 'GitHub',
           isSpecificExtractorAvailable: true,
+          pageType: 'github',
         };
       }
 
-      // 3. Known Tech/Blog Platforms
+      // 3. Dynamic community and Q&A platforms
+      if (hostname === 'reddit.com' || hostname.endsWith('.reddit.com')) {
+        return {
+          sourceType: 'generic',
+          platform: 'Reddit',
+          isSpecificExtractorAvailable: false,
+          pageType: 'reddit',
+        };
+      }
+
+      if (hostname === 'stackoverflow.com' || hostname.endsWith('.stackexchange.com')) {
+        return {
+          sourceType: 'generic',
+          platform: 'Stack Overflow',
+          isSpecificExtractorAvailable: false,
+          pageType: 'generic',
+        };
+      }
+
+      if (hostname.endsWith('wikipedia.org')) {
+        return {
+          sourceType: 'article',
+          platform: 'Wikipedia',
+          isSpecificExtractorAvailable: false,
+          pageType: 'article',
+        };
+      }
+
+      const isKnownSearchHost = /(^|\.)((google|bing|duckduckgo|yahoo|baidu|yandex)\.)/.test(hostname);
+      if (/\/(?:search|results?)(?:\/|$)/i.test(pathname) || (isKnownSearchHost && urlObj.searchParams.has('q'))) {
+        return {
+          sourceType: 'generic',
+          platform: 'Search Results',
+          isSpecificExtractorAvailable: false,
+          pageType: 'search-results',
+        };
+      }
+
+      // 4. Known Tech/Blog Platforms
       if (hostname.includes('medium.com')) {
         return {
           sourceType: 'article',
           platform: 'Medium',
           isSpecificExtractorAvailable: true,
+          pageType: 'article',
         };
       }
 
@@ -52,6 +104,7 @@ export class SourceDetector {
           sourceType: 'article',
           platform: 'Dev.to',
           isSpecificExtractorAvailable: true,
+          pageType: 'article',
         };
       }
 
@@ -60,6 +113,7 @@ export class SourceDetector {
           sourceType: 'article',
           platform: 'Substack',
           isSpecificExtractorAvailable: true,
+          pageType: 'article',
         };
       }
 
@@ -68,10 +122,11 @@ export class SourceDetector {
           sourceType: 'article',
           platform: 'ArXiv',
           isSpecificExtractorAvailable: true,
+          pageType: 'article',
         };
       }
 
-      // 4. Documentation Heuristics
+      // 5. Documentation Heuristics
       if (
         hostname.startsWith('docs.') ||
         hostname.startsWith('doc.') ||
@@ -88,20 +143,23 @@ export class SourceDetector {
           sourceType: 'documentation',
           platform: 'Docs',
           isSpecificExtractorAvailable: true,
+          pageType: 'documentation',
         };
       }
 
-      // 5. Default Article vs Generic Web
+      // 6. Default Article vs Generic Web
       return {
         sourceType: 'article',
         platform: 'Web',
         isSpecificExtractorAvailable: true,
+        pageType: 'article',
       };
     } catch {
       return {
         sourceType: 'generic',
         platform: 'Web',
         isSpecificExtractorAvailable: false,
+        pageType: 'generic',
       };
     }
   }

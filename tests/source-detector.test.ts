@@ -52,4 +52,24 @@ describe('SourceDetector', () => {
     expect(result.sourceType).toBe('article');
     expect(result.platform).toBe('Web');
   });
+
+  it('detects Reddit and PDF pages without changing the source contract', () => {
+    const reddit = SourceDetector.detect('https://www.reddit.com/r/typescript/comments/abc123/example_post/');
+    expect(reddit.sourceType).toBe('generic');
+    expect(reddit.platform).toBe('Reddit');
+    expect(reddit.pageType).toBe('reddit');
+
+    const pdf = SourceDetector.detect('https://example.com/papers/design.pdf');
+    expect(pdf.sourceType).toBe('generic');
+    expect(pdf.platform).toBe('PDF');
+    expect(pdf.pageType).toBe('pdf');
+  });
+
+  it('does not classify arbitrary q parameters as search results', () => {
+    const article = SourceDetector.detect('https://example.com/article?q=redis');
+    expect(article.pageType).toBe('article');
+
+    const search = SourceDetector.detect('https://www.google.com/search?q=redis');
+    expect(search.pageType).toBe('search-results');
+  });
 });

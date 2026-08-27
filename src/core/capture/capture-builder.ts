@@ -14,6 +14,7 @@ export interface RawExtractedData {
   title?: string;
   author?: string;
   channel?: string;
+  siteName?: string;
   faviconUrl?: string;
   publishedAt?: string;
   description?: string;
@@ -23,6 +24,10 @@ export interface RawExtractedData {
   currentTimestampSeconds?: number;
   engagementDurationSeconds?: number;
   contentHash?: string;
+  contentType?: string;
+  extractionMethod?: string;
+  extractionStatus?: string;
+  extractionMetadata?: Record<string, unknown>;
 }
 
 export class CaptureBuilder {
@@ -77,6 +82,11 @@ export class CaptureBuilder {
         contentHash: raw.contentHash,
         publishedAt: raw.publishedAt,
         description: raw.description,
+        siteName: raw.siteName,
+        contentType: raw.contentType,
+        extractionMethod: raw.extractionMethod,
+        extractionStatus: raw.extractionStatus,
+        extractionMetadata: raw.extractionMetadata,
       },
       engagement: {
         currentTimestampSeconds: raw.currentTimestampSeconds,
