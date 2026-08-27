@@ -14,6 +14,14 @@ export class CaptureProcessor {
     raw: RawExtractedData,
     options?: { forceNewVisit?: boolean }
   ): Promise<{ saved: boolean; duplicate: boolean }> {
+    if (
+      raw.contentType === 'search-results' ||
+      raw.platform === 'Search Results' ||
+      (raw.sourceType as string) === 'search-results'
+    ) {
+      return { saved: false, duplicate: false };
+    }
+
     const settings = await SettingsStore.getSettings();
     if (!PrivacyPolicyEngine.isMasterEnabled(settings)) {
       return { saved: false, duplicate: false };

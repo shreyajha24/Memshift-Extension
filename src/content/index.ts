@@ -3,7 +3,7 @@ import { hashContent } from '../shared/hashing';
 import { STORAGE_KEYS } from '../shared/constants';
 import { DEFAULT_SETTINGS, MemShiftSettings } from '../types/settings';
 import { ExtensionMessage } from '../types/messages';
-import { SourceDetector } from './source-detector';
+import { SourceDetector, isSearchEngineUrl, UTILITY_PATH } from './source-detector';
 import { ArticleExtractor } from './web/article-extractor';
 import { GitHubExtractor } from './github/github-extractor';
 import { YouTubeExtractor } from './youtube/youtube-extractor';
@@ -17,7 +17,6 @@ const INITIAL_DELAY_MS = 700;
 const DYNAMIC_RETRY_WINDOW_MS = 6_000;
 const DYNAMIC_RETRY_DEBOUNCE_MS = 600;
 const MAX_DYNAMIC_ATTEMPTS = 3;
-const UTILITY_PATH = /\/(?:signin|login|logout|account|settings|preferences|notifications)(?:\/|$)/i;
 let enabled = false;
 let generation = 0;
 let captureTimer: number | undefined;
@@ -31,6 +30,7 @@ function isPotentiallyCapturablePage(): boolean {
   if (!document.body || document.querySelector('input[type="password"], form[action*="login" i], form[action*="signin" i]')) return false;
   const url = new URL(window.location.href);
   if (UTILITY_PATH.test(url.pathname)) return false;
+  if (isSearchEngineUrl(url)) return false;
   if (url.hostname === 'youtu.be') return url.pathname.length > 1;
   if (url.hostname.includes('youtube.com')) return url.pathname === '/watch' && url.searchParams.has('v');
   return url.protocol === 'http:' || url.protocol === 'https:';
@@ -50,6 +50,7 @@ async function withTimeout<T>(work: () => T | Promise<T>, timeoutMs: number): Pr
 async function extract(settings: MemShiftSettings): Promise<RawExtractedData | undefined> {
   if (!isPotentiallyCapturablePage()) return undefined;
   const detection = SourceDetector.detect(window.location.href, document.title);
+  if (detection.pageType === 'search-results' || detection.platform === 'Search Results') return undefined;
   let raw: RawExtractedData | undefined;
   if (detection.sourceType === 'youtube') {
     const result = await withTimeout(() => YouTubeExtractor.extract(settings.youtube), YOUTUBE_TIMEOUT_MS);
@@ -125,6 +126,7 @@ async function extract(settings: MemShiftSettings): Promise<RawExtractedData | u
 function shouldSendCapture(raw: RawExtractedData | undefined): raw is RawExtractedData {
   if (!raw) return false;
   if (raw.extractionStatus === 'failed') return false;
+  if (raw.contentType === 'search-results' || raw.platform === 'Search Results' || (raw.sourceType as string) === 'search-results') return false;
   if (raw.sourceType === 'youtube') return Boolean(raw.title && (raw.description || raw.transcript?.length));
   if (raw.sourceType === 'github') return Boolean(raw.title && (raw.text || raw.excerpt || raw.description));
   return hasMeaningfulContent(raw.text || raw.excerpt, raw.description);

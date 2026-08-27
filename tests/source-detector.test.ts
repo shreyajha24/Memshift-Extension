@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SourceDetector } from '../src/content/source-detector';
+import { SourceDetector, isSearchEngineUrl, isCapturableContentUrl } from '../src/content/source-detector';
 
 describe('SourceDetector', () => {
   it('detects YouTube watch URLs correctly', () => {
@@ -73,3 +73,43 @@ describe('SourceDetector', () => {
     expect(search.pageType).toBe('search-results');
   });
 });
+
+describe('Search Engine Exclusion', () => {
+  it.each([
+    'https://www.google.com/search?q=what+is+caching',
+    'https://google.com/search?q=typescript',
+    'https://google.co.in/search?q=react',
+    'https://www.bing.com/search?q=nodejs',
+    'https://duckduckgo.com/?q=memshift',
+    'https://search.yahoo.com/search?p=vitest',
+    'https://www.baidu.com/s?wd=vite',
+    'https://yandex.com/search/?text=javascript',
+    'https://search.brave.com/search?q=security',
+    'https://www.ecosia.org/search?q=trees',
+    'https://kagi.com/search?q=fast',
+    'https://www.startpage.com/sp/search?query=privacy',
+    'https://example.com/search?q=query',
+    'https://example.com/results?query=test',
+  ])('identifies search engine/result URLs and rejects them from capture: %s', (url) => {
+    const urlObj = new URL(url);
+    expect(isSearchEngineUrl(urlObj)).toBe(true);
+    expect(isCapturableContentUrl(url)).toBe(false);
+  });
+
+  it.each([
+    'https://cloud.google.com/docs/caching',
+    'https://developers.google.com/web/fundamentals',
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    'https://github.com/facebook/react',
+    'https://medium.com/@author/distributed-caching',
+    'https://dev.to/engineer/postgres-indexing',
+    'https://developer.mozilla.org/en-US/docs/Web/API',
+    'https://example.com/blog/scaling-architecture',
+    'https://example.com/article?q=redis',
+  ])('permits normal websites, articles, docs, and YouTube videos: %s', (url) => {
+    const urlObj = new URL(url);
+    expect(isSearchEngineUrl(urlObj)).toBe(false);
+    expect(isCapturableContentUrl(url)).toBe(true);
+  });
+});
+

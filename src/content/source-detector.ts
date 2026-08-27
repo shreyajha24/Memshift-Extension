@@ -164,3 +164,62 @@ export class SourceDetector {
     }
   }
 }
+
+export const UTILITY_PATH = /\/(?:search|signin|login|logout|account|settings|preferences|notifications)(?:\/|$)/i;
+
+export function isSearchEngineUrl(url: URL | string): boolean {
+  try {
+    const urlObj = typeof url === 'string' ? new URL(url) : url;
+    const host = urlObj.hostname.toLowerCase();
+    const path = urlObj.pathname.toLowerCase();
+
+    const isGoogleSearchHost =
+      /(^|\.)google\.[a-z.]+/i.test(host) &&
+      !/^(cloud|developers|firebase|workspace|mail|drive|docs|calendar)\./i.test(host);
+    const isBingSearchHost = /(^|\.)bing\.com$/i.test(host);
+    const isDuckDuckGoHost = /(^|\.)duckduckgo\.com$/i.test(host);
+    const isYahooSearchHost = /(^|\.)search\.yahoo\.(com|[a-z.]+)$/i.test(host);
+    const isBaiduSearchHost = /(^|\.)baidu\.com$/i.test(host);
+    const isYandexSearchHost = /(^|\.)(yandex\.(com|ru|org)|ya\.ru)$/i.test(host);
+    const isBraveSearchHost = host === 'search.brave.com';
+    const isEcosiaHost = /(^|\.)ecosia\.org$/i.test(host);
+    const isKagiHost = /(^|\.)kagi\.com$/i.test(host);
+    const isStartpageHost = /(^|\.)startpage\.com$/i.test(host);
+
+    if (
+      isGoogleSearchHost ||
+      isBingSearchHost ||
+      isDuckDuckGoHost ||
+      isYahooSearchHost ||
+      isBaiduSearchHost ||
+      isYandexSearchHost ||
+      isBraveSearchHost ||
+      isEcosiaHost ||
+      isKagiHost ||
+      isStartpageHost
+    ) {
+      return true;
+    }
+
+    if (/\/(?:search|results?)(?:\/|$)/i.test(path)) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export function isCapturableContentUrl(url: URL | string): boolean {
+  try {
+    const urlObj = typeof url === 'string' ? new URL(url) : url;
+    if (UTILITY_PATH.test(urlObj.pathname)) return false;
+    if (isSearchEngineUrl(urlObj)) return false;
+    if (urlObj.hostname === 'youtu.be') return urlObj.pathname.length > 1;
+    if (urlObj.hostname.includes('youtube.com')) return urlObj.pathname === '/watch' && urlObj.searchParams.has('v');
+    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}

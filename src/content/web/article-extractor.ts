@@ -236,7 +236,7 @@ export class ArticleExtractor {
     const domType = this.detectContentType();
     if (!contentType) return domType;
     if (contentType === 'article' || contentType === 'generic') {
-      if (domType === 'spa' || domType === 'documentation' || domType === 'search-results' || domType === 'pdf') return domType;
+      if (domType === 'spa' || domType === 'documentation' || domType === 'pdf') return domType;
     }
     return contentType;
   }
@@ -265,7 +265,7 @@ export class ArticleExtractor {
     const containers = Array.from(document.querySelectorAll(SEMANTIC_CONTAINER_SELECTOR))
       .filter((element) => this.isVisible(element))
       .sort((a, b) => this.scoreElement(b, contentType) - this.scoreElement(a, contentType))
-      .slice(0, contentType === 'reddit' || contentType === 'search-results' ? 3 : 1);
+      .slice(0, contentType === 'reddit' ? 3 : 1);
 
     const blocks = containers.flatMap((container) => this.blocksFromElement(container, contentType));
     return normalizeContentBlocks(blocks);
@@ -338,13 +338,12 @@ export class ArticleExtractor {
     if (contentType === 'documentation' && code > 0) score += 20;
     if (contentType === 'github' && code > 0) score += 25;
     if (contentType === 'reddit' && /\bcomment\b/i.test(`${element.id || ''} ${element.getAttribute('aria-label') || ''}`)) score -= 35;
-    if (contentType === 'search-results') score += Math.min(lists, 12) * 3;
     if (/[.!?]\s/.test(text)) score += 10;
     if (this.hasContentHint(element)) score += 15;
     if (this.isNoiseElement(element)) score -= 80;
     score -= forms * 30;
     score -= Math.min(buttons, 20) * 2;
-    score -= linkDensity * (contentType === 'search-results' ? 45 : 100);
+    score -= linkDensity * 100;
 
     return score;
   }
@@ -428,18 +427,18 @@ export class ArticleExtractor {
     return /\b(article|content|post|entry|story|readme|markdown|document|question|answer|body|main)\b/.test(value);
   }
 
-  private static isMeaningfulBlockElement(element: Element, text: string, contentType: PageContentType): boolean {
+  private static isMeaningfulBlockElement(element: Element, text: string, _contentType?: PageContentType): boolean {
     const tag = element.tagName.toLowerCase();
     const compact = text.replace(/\s+/g, ' ').trim();
     if (!compact) return false;
 
     if (this.isNoiseElement(element)) return false;
     if (tag === 'code' && element.parentElement?.tagName.toLowerCase() !== 'pre' && compact.length < 80) return false;
-    if (tag === 'li' && compact.length < 30 && this.linkDensity(element) > 0.7 && contentType !== 'search-results') return false;
+    if (tag === 'li' && compact.length < 30 && this.linkDensity(element) > 0.7) return false;
     if (/^(home|search|notifications|settings|profile|sign in|sign up|log in|menu|more|close|open)$/i.test(compact)) return false;
     if (/^(advertisement|sponsored|promoted|related articles?|recommended|share this)$/i.test(compact)) return false;
     if (compact.length < 12 && !/^h[1-6]$/.test(tag) && tag !== 'code') return false;
-    if (contentType !== 'search-results' && compact.length < 45 && this.linkDensity(element) > 0.55) return false;
+    if (compact.length < 45 && this.linkDensity(element) > 0.55) return false;
     return true;
   }
 
