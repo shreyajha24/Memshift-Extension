@@ -1,4 +1,4 @@
-# Environment variables
+git# Environment variables
 .env
 .env.*
 !.env.example

@@ -49,4 +49,34 @@ describe('release packaging scripts', () => {
       expect(existsSync(file)).toBe(true);
     }
   });
+
+  it('verifies zip archive has exactly one root manifest and no duplicate manifests', () => {
+    const zipPath = join('release', 'memshift-chrome-v1.0.0.zip');
+    if (!existsSync(zipPath)) return;
+
+    const zipBuffer = readFileSync(zipPath);
+    // Parse zip central directory entries
+    const entries: string[] = [];
+    let idx = 0;
+    while (idx < zipBuffer.length - 4) {
+      if (zipBuffer.readUInt32LE(idx) === 0x02014b50) {
+        const fnLen = zipBuffer.readUInt16LE(idx + 28);
+        const extraLen = zipBuffer.readUInt16LE(idx + 30);
+        const commentLen = zipBuffer.readUInt16LE(idx + 32);
+        const filename = zipBuffer.toString('utf8', idx + 46, idx + 46 + fnLen);
+        entries.push(filename);
+        idx += 46 + fnLen + extraLen + commentLen;
+      } else {
+        idx++;
+      }
+    }
+
+    expect(entries.length).toBeGreaterThan(0);
+    const manifests = entries.filter((e) => e === 'manifest.json' || e.endsWith('/manifest.json') || e.endsWith('\\manifest.json'));
+    expect(manifests).toEqual(['manifest.json']);
+    expect(entries).toContain('background.js');
+    expect(entries).toContain('content.js');
+    expect(entries).toContain('icons/icon-128.png');
+    expect(entries.some((e) => e.includes('.env') || e.includes('node_modules'))).toBe(false);
+  });
 });

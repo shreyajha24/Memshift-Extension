@@ -10,6 +10,7 @@
     "build:chrome": "node scripts/build-extension.mjs chrome",
     "build:edge": "node scripts/build-extension.mjs edge",
     "build:firefox": "node scripts/build-extension.mjs firefox",
+    "package": "node scripts/package-extension.mjs chrome",
     "package:chrome": "node scripts/package-extension.mjs chrome",
     "package:edge": "node scripts/package-extension.mjs edge",
     "package:firefox": "node scripts/package-extension.mjs firefox",
