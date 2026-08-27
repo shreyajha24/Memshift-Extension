@@ -1,55 +1,50 @@
 # Browser Compatibility
 
-## Supported (Chromium family — shared package)
+## Current Release Target
 
 | Browser | Status | Package |
 |---|---|---|
-| Google Chrome | **Supported** (build validated; runtime must be tested manually) | `npm run package:chrome` → `release/memshift-chrome-vX.Y.Z.zip` |
-| Microsoft Edge | **Supported** (same Chromium MV3 package; runtime must be tested manually) | `npm run package:edge` → `release/memshift-edge-vX.Y.Z.zip` |
-| Brave | **Supported** (load the Chrome/Chromium package; runtime must be tested manually) | Use the Chrome ZIP / `release/chrome/` |
+| Google Chrome | Supported MV3 production build | `npm run package:chrome` -> `memshift-chrome.zip` |
 
-> Build validation is **not** the same as store publication or runtime QA.
-> Do not claim “tested successfully” in a browser until a human has loaded the unpacked/ZIP build in that browser.
+The current store release is Chrome-only. The build and packaging scripts intentionally do not create Edge, Firefox, Brave, or cross-browser release packages.
 
-## Firefox — planned / architecture ready
-
-| Browser | Status | Package |
-|---|---|---|
-| Mozilla Firefox | **Planned / not runtime-validated** | `npm run package:firefox` produces a structural package only |
-
-### Firefox TODOs before claiming support
-
-1. Load `release/firefox/` in Firefox Nightly/Release and verify MV3 background module loading.
-2. Confirm `browser` vs `chrome` API resolution via `src/shared/browser-api.ts`.
-3. Verify content-script IIFE injection and popup rendering.
-4. Verify IndexedDB / `storage.local` persistence across restarts.
-5. Submit to AMO only after those runtime checks pass.
-
-The Firefox manifest lives at `config/manifests/firefox.json` and includes `browser_specific_settings.gecko`.
-
-## Architecture
+## Build Flow
 
 ```text
-ONE MemShift codebase (src/)
-        ↓
-Shared Vite build (dist/)
-        ↓
-config/manifests/{chrome|edge|firefox}.json  (+ version from package.json)
-        ↓
-release/{chrome|edge|firefox}/
-        ↓
-release/memshift-<target>-vX.Y.Z.zip
+public/manifest.json  (canonical Chrome MV3 source)
+        |
+        v
+npm run build
+        |
+        v
+dist/                 (Chrome extension root)
+        |
+        v
+npm run package:chrome
+        |
+        v
+memshift-chrome.zip   (contents of dist at archive root)
 ```
 
-Chrome, Edge, and Brave share the Chromium implementation. Firefox uses the same built assets with a Firefox-specific manifest.
+`dist/` is the folder to load unpacked in Chrome. The Chrome Web Store ZIP must contain `manifest.json` at the archive root and must not contain nested `dist/`, `public/`, `release/`, browser-specific folders, or duplicate manifests.
 
-## Permissions (Chromium)
+## Runtime QA
+
+Build validation is not the same as runtime QA. Before submission, load `dist/` in Chrome and test:
+
+1. Extension install.
+2. Popup open.
+3. Background service worker load.
+4. Content script load.
+5. Page extraction and capture.
+6. API communication.
+7. Supabase auth/data flow where applicable.
+
+## Permissions
 
 | Permission | Why |
 |---|---|
 | `storage` | Settings, local memories, knowledge indexes, auth session, offline sync queue |
-| `host_permissions` `http(s)://*/*` | Content scripts run on public web pages for **toggle-gated** automatic capture |
+| `host_permissions` `http(s)://*/*` | Content scripts run on public web pages for toggle-gated automatic capture |
 
-**Not requested:** `history`, `bookmarks`, `cookies`, `tabs`, `webNavigation`, `management`, `downloads`, `alarms`.
-
-Settings changes propagate through `storage.onChanged` (no tab enumeration).
+Not requested: `history`, `bookmarks`, `cookies`, `tabs`, `webNavigation`, `management`, `downloads`, `alarms`.

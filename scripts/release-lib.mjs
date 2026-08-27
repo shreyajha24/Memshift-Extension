@@ -1,64 +1,18 @@
 /**
- * Shared helpers for MemShift extension packaging.
- * Version is always sourced from package.json — never hard-coded here.
+ * Shared helpers for MemShift Chrome Web Store packaging.
  */
-import { readFileSync, existsSync, mkdirSync, rmSync, cpSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import zlib from 'node:zlib';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(__dirname, '..');
 export const DIST = join(ROOT, 'dist');
-export const RELEASE = join(ROOT, 'release');
-export const MANIFESTS = join(ROOT, 'config', 'manifests');
-
-export const TARGETS = ['chrome', 'edge', 'firefox'];
-/** @typedef {'chrome' | 'edge' | 'firefox'} Target */
+export const CHROME_ZIP = join(ROOT, 'memshift-chrome.zip');
 
 export function readPackageJson() {
   return JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
-}
-
-export function loadManifestTemplate(target) {
-  const path = join(MANIFESTS, `${target}.json`);
-  if (!existsSync(path)) {
-    throw new Error(`Missing manifest template: ${path}`);
-  }
-  return JSON.parse(readFileSync(path, 'utf8'));
-}
-
-export function buildManifest(target, version) {
-  const manifest = loadManifestTemplate(target);
-  manifest.version = version;
-  return manifest;
-}
-
-export function writeManifest(targetDir, manifest) {
-  writeFileSync(join(targetDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-}
-
-export function ensureCleanDir(dir) {
-  rmSync(dir, { recursive: true, force: true });
-  mkdirSync(dir, { recursive: true });
-}
-
-export function copyDistTo(targetDir) {
-  if (!existsSync(DIST)) {
-    throw new Error('dist/ is missing. Run the Vite build first.');
-  }
-  cpSync(DIST, targetDir, { recursive: true });
-}
-
-export function runNpmBuild() {
-  const result = spawnSync('npm', ['run', 'build'], {
-    cwd: ROOT,
-    stdio: 'inherit',
-    shell: true,
-  });
-  if (result.status !== 0) {
-    throw new Error('npm run build failed');
-  }
 }
 
 export function walkFiles(dir) {
@@ -76,16 +30,6 @@ export function relativePosix(from, to) {
   return relative(from, to).split('\\').join('/');
 }
 
-/** Patterns that must never appear in a store package. */
-export const FORBIDDEN_PATH_FRAGMENTS = [
-  'node_modules',
-  '.env',
-  '.git',
-  '.idea',
-  '.vscode',
-  'coverage',
-];
-
 export const FORBIDDEN_BASENAMES = new Set([
   '.env',
   '.env.local',
@@ -97,13 +41,13 @@ export const FORBIDDEN_BASENAMES = new Set([
 ]);
 
 export const SECRET_PATTERNS = [
+  /SUPABASE_SERVICE_ROLE_KEY/i,
   /SUPABASE_SERVICE_ROLE/i,
+  /service_role/i,
   /BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY/,
   /sk-[a-zA-Z0-9]{20,}/,
   /eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/,
 ];
-
-import zlib from 'node:zlib';
 
 function crc32(buf) {
   let c;
@@ -130,11 +74,6 @@ function dateToDosDateTime(d) {
   return { dosDate, dosTime };
 }
 
-/**
- * Creates a clean, cross-platform ZIP file from the contents of a directory.
- * Ensures POSIX forward slashes ('/') in all internal archive paths for full
- * Chrome Web Store and cross-platform compatibility.
- */
 export function createZipFromDirectory(sourceDir, outZipPath) {
   mkdirSync(dirname(outZipPath), { recursive: true });
 
@@ -154,44 +93,41 @@ export function createZipFromDirectory(sourceDir, outZipPath) {
     const compressedSize = compressedData.length;
     const filenameBuf = Buffer.from(relPosix, 'utf8');
 
-    // Local file header (30 bytes + filename length)
     const localHeader = Buffer.alloc(30);
-    localHeader.writeUInt32LE(0x04034b50, 0); // Signature
-    localHeader.writeUInt16LE(20, 4);          // Version needed (2.0)
-    localHeader.writeUInt16LE(0x0800, 6);      // Flags (UTF-8 filename)
-    localHeader.writeUInt16LE(8, 8);           // Compression method (Deflate)
+    localHeader.writeUInt32LE(0x04034b50, 0);
+    localHeader.writeUInt16LE(20, 4);
+    localHeader.writeUInt16LE(0x0800, 6);
+    localHeader.writeUInt16LE(8, 8);
     localHeader.writeUInt16LE(dosTime, 10);
     localHeader.writeUInt16LE(dosDate, 12);
     localHeader.writeUInt32LE(crc, 14);
     localHeader.writeUInt32LE(compressedSize, 18);
     localHeader.writeUInt32LE(uncompressedSize, 22);
     localHeader.writeUInt16LE(filenameBuf.length, 26);
-    localHeader.writeUInt16LE(0, 28);          // Extra field length
+    localHeader.writeUInt16LE(0, 28);
 
     localChunks.push(localHeader, filenameBuf, compressedData);
 
-    // Central directory header (46 bytes + filename length)
     const centralHeader = Buffer.alloc(46);
-    centralHeader.writeUInt32LE(0x02014b50, 0); // Signature
-    centralHeader.writeUInt16LE(20, 4);         // Version made by
-    centralHeader.writeUInt16LE(20, 6);         // Version needed
-    centralHeader.writeUInt16LE(0x0800, 8);     // Flags (UTF-8)
-    centralHeader.writeUInt16LE(8, 10);         // Compression method
+    centralHeader.writeUInt32LE(0x02014b50, 0);
+    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE(20, 6);
+    centralHeader.writeUInt16LE(0x0800, 8);
+    centralHeader.writeUInt16LE(8, 10);
     centralHeader.writeUInt16LE(dosTime, 12);
     centralHeader.writeUInt16LE(dosDate, 14);
     centralHeader.writeUInt32LE(crc, 16);
     centralHeader.writeUInt32LE(compressedSize, 20);
     centralHeader.writeUInt32LE(uncompressedSize, 24);
     centralHeader.writeUInt16LE(filenameBuf.length, 28);
-    centralHeader.writeUInt16LE(0, 30);         // Extra field length
-    centralHeader.writeUInt16LE(0, 32);         // File comment length
-    centralHeader.writeUInt16LE(0, 34);         // Disk number start
-    centralHeader.writeUInt16LE(0, 36);         // Internal attributes
-    centralHeader.writeUInt32LE(0, 38);         // External attributes
-    centralHeader.writeUInt32LE(currentOffset, 42); // Relative offset of local header
+    centralHeader.writeUInt16LE(0, 30);
+    centralHeader.writeUInt16LE(0, 32);
+    centralHeader.writeUInt16LE(0, 34);
+    centralHeader.writeUInt16LE(0, 36);
+    centralHeader.writeUInt32LE(0, 38);
+    centralHeader.writeUInt32LE(currentOffset, 42);
 
     centralChunks.push(centralHeader, filenameBuf);
-
     currentOffset += 30 + filenameBuf.length + compressedSize;
   }
 
@@ -200,17 +136,33 @@ export function createZipFromDirectory(sourceDir, outZipPath) {
   const cdSize = centralDirBuffer.length;
   const numEntries = files.length;
 
-  // End of central directory record (22 bytes)
   const eocd = Buffer.alloc(22);
-  eocd.writeUInt32LE(0x06054b50, 0); // Signature
-  eocd.writeUInt16LE(0, 4);          // Disk number
-  eocd.writeUInt16LE(0, 6);          // Disk with CD
-  eocd.writeUInt16LE(numEntries, 8); // Entries on this disk
-  eocd.writeUInt16LE(numEntries, 10);// Total entries
-  eocd.writeUInt32LE(cdSize, 12);    // CD size
-  eocd.writeUInt32LE(cdOffset, 16);  // CD offset
-  eocd.writeUInt16LE(0, 20);         // Comment length
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(numEntries, 8);
+  eocd.writeUInt16LE(numEntries, 10);
+  eocd.writeUInt32LE(cdSize, 12);
+  eocd.writeUInt32LE(cdOffset, 16);
+  eocd.writeUInt16LE(0, 20);
 
-  const finalZip = Buffer.concat([...localChunks, centralDirBuffer, eocd]);
-  writeFileSync(outZipPath, finalZip);
+  writeFileSync(outZipPath, Buffer.concat([...localChunks, centralDirBuffer, eocd]));
+}
+
+export function listZipEntries(zipPath) {
+  const zipBuffer = readFileSync(zipPath);
+  const entries = [];
+  let idx = 0;
+  while (idx < zipBuffer.length - 4) {
+    if (zipBuffer.readUInt32LE(idx) === 0x02014b50) {
+      const fnLen = zipBuffer.readUInt16LE(idx + 28);
+      const extraLen = zipBuffer.readUInt16LE(idx + 30);
+      const commentLen = zipBuffer.readUInt16LE(idx + 32);
+      entries.push(zipBuffer.toString('utf8', idx + 46, idx + 46 + fnLen));
+      idx += 46 + fnLen + extraLen + commentLen;
+    } else {
+      idx++;
+    }
+  }
+  return entries;
 }

@@ -1,40 +1,29 @@
-# MemShift — Your Internet Memory
+# MemShift - Your Internet Memory
 
-> **Privacy-first personal memory layer for the internet.**
-> Official Chromium browser extension (Chrome, Edge, Brave) with a shared codebase and optional Firefox prep package.
+> Privacy-first personal memory layer for the internet.
+> Current release target: Google Chrome / Chrome Web Store.
 
----
-
-## Supported browsers
+## Supported Browser For This Release
 
 | Browser | Status |
 |---|---|
-| **Google Chrome** | Supported — Chromium MV3 package |
-| **Microsoft Edge** | Supported — same Chromium package |
-| **Brave** | Supported — load the Chrome/Chromium package |
-| **Mozilla Firefox** | Planned / architecture-ready — **not runtime-validated** |
+| Google Chrome | Supported MV3 production build |
 
-See [docs/BROWSER_COMPAT.md](docs/BROWSER_COMPAT.md) for packaging details and Firefox TODOs.
-
-Build validation ≠ store publication ≠ runtime QA. Do not claim a browser was “tested successfully” until the ZIP/unpacked build has been loaded in that browser.
-
----
+Build validation is not the same as store publication or runtime QA. Do not claim the extension was tested successfully until the unpacked `dist/` build has been loaded in Chrome and exercised.
 
 ## Overview
 
 MemShift turns useful insights from web browsing into a structured, interconnected, and instantly recallable personal knowledge graph.
 
+```text
+CONSUME -> CAPTURE -> UNDERSTAND -> CONNECT -> REMEMBER -> RECALL
+ (Browser) (Extension) (Local+AI)   (Graph)   (Local/DB) (Hybrid Search)
 ```
-CONSUME ──▶ CAPTURE ──▶ UNDERSTAND ──▶ CONNECT ──▶ REMEMBER ──▶ RECALL
- (Browser)   (Extension)   (Local+AI)    (Graph)    (Local/DB)    (Hybrid Search)
-```
 
-- **Browser Extension**: Capture + local understanding + local recall.
-- **Supabase (optional sync)**: Connect + remember + semantic recall when backend sync is enabled.
+- Browser extension: capture, local understanding, and local recall.
+- Supabase optional sync: connect, remember, and semantic recall when backend sync is enabled.
 
-Capture is **toggle-gated**. MemShift does **not** silently store every visited URL.
-
----
+Capture is toggle-gated. MemShift does not silently store every visited URL.
 
 ## Development
 
@@ -44,99 +33,86 @@ npm run generate-icons   # if icons are missing
 npm run dev
 ```
 
-### Validation
+## Validation
 
 ```bash
 npm run typecheck
 npm run lint
 npm test
 npm run build
+npm run validate:chrome
 ```
 
-### Browser-specific builds
+## Chrome Production Build
 
 ```bash
-npm run build:chrome
-npm run build:edge
-npm run build:firefox   # structural package only; Firefox runtime not validated
+npm run build
 ```
 
-Outputs land in `release/<target>/` with `manifest.json` version taken from `package.json`.
+The canonical source manifest is `public/manifest.json`. Vite copies it to `dist/manifest.json`; the secondary content build then writes the classic IIFE `content.js` into the same `dist/` folder without emptying it.
 
-### Store packaging (ZIP)
+After build, `dist/` is the Chrome extension root to load unpacked.
+
+## Chrome Web Store ZIP
 
 ```bash
 npm run package:chrome
-npm run package:edge
-# npm run package:firefox   # only for architecture experiments until runtime-tested
 ```
 
-Produces:
+This creates `memshift-chrome.zip` from the contents of `dist/`. The archive root contains `manifest.json`; it does not contain a nested project folder, `dist/`, `public/`, or `release/`.
 
-- `release/memshift-chrome-v1.0.0.zip`
-- `release/memshift-edge-v1.0.0.zip`
+## Load Unpacked In Chrome
 
-Upload these ZIP files manually via the Chrome Web Store / Edge Add-ons developer dashboards. This repo does **not** automate store submission.
+1. Run `npm run build`.
+2. Open `chrome://extensions`.
+3. Enable Developer mode.
+4. Click Load unpacked.
+5. Select `dist/`.
 
-### Load unpacked (dev)
-
-1. `npm run build` (or `npm run build:chrome`)
-2. Open `chrome://extensions`, `edge://extensions`, or `brave://extensions`
-3. Enable **Developer mode** → **Load unpacked** → select `dist/` or `release/chrome/`
-
----
-
-## Permissions (privacy-first)
+## Permissions
 
 | Permission | Why it is required |
 |---|---|
 | `storage` | Settings, local memories, knowledge indexes, auth session, offline queue |
-| Host access `http(s)://*/*` | Content scripts on public pages for **toggle-gated** capture |
+| Host access `http(s)://*/*` | Content scripts on public pages for toggle-gated capture |
 
-**Not requested:** `history`, `bookmarks`, `cookies`, `tabs`, `webNavigation`, `management`, `downloads`.
+Not requested: `history`, `bookmarks`, `cookies`, `tabs`, `webNavigation`, `management`, `downloads`.
 
-Settings sync to open pages via `storage.onChanged` — no tab enumeration.
+Settings sync to open pages via `storage.onChanged`; no tab enumeration is required.
 
----
+## Privacy Model
 
-## Privacy model
-
-- Master toggle OFF → no extraction, no capture, no sync.
+- Master toggle OFF means no extraction, no capture, and no sync.
 - No browsing-history permission; MemShift is not a silent tracker.
 - Forms, passwords, cookies, and website storage are never read.
-- Sensitive fields (transcripts, tokens, keys) are redacted by the logger.
-- Never put service-role keys or AI provider secrets in the extension (see `.env.example`).
+- Sensitive fields such as transcripts, tokens, and keys are redacted by the logger.
+- Never put service-role keys or AI provider secrets in the extension. See `.env.example`.
 
----
-
-## Project structure
+## Project Structure
 
 ```text
 memshift-extension/
-├── config/manifests/          # chrome.json, edge.json, firefox.json
-├── scripts/                   # build-extension, package-extension, validate-release
-├── release/                   # generated packages + ZIPs (gitignored)
-├── public/manifest.json       # Chromium template used by Vite copy
-├── src/
-│   ├── background/            # MV3 service worker
-│   ├── content/               # Capture content scripts
-│   ├── popup/                 # React recall UI
-│   ├── storage/               # Local memory + knowledge indexes
-│   ├── knowledge/             # Classification / relationships
-│   ├── shared/browser-api.ts  # chrome/browser API accessor
-│   └── ...
-├── docs/BROWSER_COMPAT.md
-└── tests/
+|-- dist/                         # generated Chrome extension root (gitignored)
+|-- public/manifest.json          # canonical Chrome MV3 manifest
+|-- public/icons/                 # extension icons copied into dist/icons
+|-- scripts/
+|   |-- package-extension.mjs     # builds, validates, and zips dist contents
+|   |-- release-lib.mjs           # ZIP and validation helpers
+|   `-- validate-chrome-build.mjs # validates dist as a Chrome extension
+|-- src/
+|   |-- background/               # MV3 service worker
+|   |-- content/                  # capture content scripts
+|   |-- popup/                    # React recall UI
+|   |-- storage/                  # local memory and knowledge indexes
+|   |-- knowledge/                # classification and relationships
+|   `-- shared/browser-api.ts     # extension API accessor
+|-- docs/
+`-- tests/
 ```
-
----
 
 ## Versioning
 
-Extension version is defined once in `package.json` (`version`).
-Release scripts inject that value into each browser `manifest.json`. Keep them in sync by never hard-coding a second version.
-
----
+Keep `package.json` and `public/manifest.json` versions aligned. `npm run validate:chrome` fails if they diverge.
 
 ## Documentation
 
@@ -145,8 +121,6 @@ Release scripts inject that value into each browser `manifest.json`. Keep them i
 - [Privacy](docs/PRIVACY.md)
 - [Security](docs/SECURITY.md)
 - [Chrome Web Store listing copy](CHROMEWEBSTORE.md)
-
----
 
 ## License
 

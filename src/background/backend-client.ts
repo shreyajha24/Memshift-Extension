@@ -12,7 +12,7 @@ export interface BackendResponse<T = unknown> {
 export class BackendClient {
   private static readonly REQUEST_TIMEOUT_MS = 10_000;
   private static getApiUrl(): string {
-    const envUrl = typeof process !== 'undefined' ? process.env?.VITE_MEMSHIFT_API_URL : undefined;
+    const envUrl = import.meta.env.VITE_MEMSHIFT_API_URL;
     return envUrl || 'https://memshift-api.supabase.co/functions/v1';
   }
 
