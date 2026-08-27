@@ -1,7 +1,7 @@
 import { KnowledgeCapture } from '../types/capture';
 import { MemShiftSettings } from '../types/settings';
 import { EXTRACTION_LIMITS } from './constants';
-import { truncateString, normalizeUrl } from './utils';
+import { truncateString, normalizeUrl, extractDomain } from './utils';
 
 export function validateCapturePayload(capture: KnowledgeCapture): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
@@ -29,12 +29,16 @@ export function validateCapturePayload(capture: KnowledgeCapture): { valid: bool
 }
 
 export function sanitizeCapturePayload(capture: KnowledgeCapture): KnowledgeCapture {
+  const canonicalUrl = normalizeUrl(capture.source.canonicalUrl || capture.source.url);
+  const domain = capture.source.domain || capture.metadata.domain || extractDomain(canonicalUrl);
+
   return {
     ...capture,
     source: {
       ...capture.source,
       url: normalizeUrl(capture.source.url),
-      canonicalUrl: normalizeUrl(capture.source.canonicalUrl || capture.source.url),
+      canonicalUrl,
+      domain: truncateString(domain, 255) || undefined,
       title: truncateString(capture.source.title, EXTRACTION_LIMITS.MAX_TITLE_CHARS),
       author: truncateString(capture.source.author, 255),
       channel: truncateString(capture.source.channel, 255),
@@ -46,6 +50,11 @@ export function sanitizeCapturePayload(capture: KnowledgeCapture): KnowledgeCapt
     },
     metadata: {
       ...capture.metadata,
+      firstSeenAt: capture.metadata.firstSeenAt || capture.metadata.capturedAt,
+      lastSeenAt: capture.metadata.lastSeenAt || capture.metadata.capturedAt,
+      visitCount: Math.max(1, capture.metadata.visitCount || 1),
+      visitHistory: Array.isArray(capture.metadata.visitHistory) ? capture.metadata.visitHistory.slice(-100) : undefined,
+      domain: truncateString(domain, 255) || undefined,
       description: truncateString(capture.metadata.description, EXTRACTION_LIMITS.MAX_DESCRIPTION_CHARS),
     },
     intelligence: {

@@ -1,38 +1,31 @@
 import { MessageRouter } from './message-router';
+import { logger } from '../utils/logger';
 import { ExtensionMessage, MessageResponse } from '../types/messages';
 import { CaptureStore } from '../storage/capture-store';
-import { STORAGE_KEYS } from '../shared/constants';
 import { SettingsStore } from '../storage/settings-store';
+import { ext, ExtMessageSender } from '../shared/browser-api';
 
 /**
  * MemShift Manifest V3 Background Service Worker
+ *
+ * Settings propagation to content scripts uses chrome.storage.onChanged
+ * (also listened in the content script). No tabs permission is required.
  */
 
-// Initialize background lifecycle
-chrome.runtime.onInstalled.addListener(async () => {
-  console.log('MemShift extension installed successfully.');
-  // Persist defaults so all content scripts share an explicit master state.
+ext.runtime.onInstalled.addListener(async () => {
+  logger.info('Extension installed');
   await SettingsStore.updateSettings({});
   await updateBadge();
 });
 
-chrome.runtime.onStartup.addListener(async () => {
+ext.runtime.onStartup.addListener(async () => {
   await updateBadge();
 });
 
-// Storage is authoritative, and this notification wakes already-open pages
-// without polling, alarms, tab monitoring, or script injection.
-chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'local' && changes[STORAGE_KEYS.SETTINGS]) {
-    void broadcastSettingsChange(changes[STORAGE_KEYS.SETTINGS].newValue);
-  }
-});
-
-// Listen for messages from Popup UI
-chrome.runtime.onMessage.addListener(
+ext.runtime.onMessage.addListener(
   (
     message: ExtensionMessage,
-    sender: chrome.runtime.MessageSender,
+    sender: ExtMessageSender,
     sendResponse: (response: MessageResponse) => void
   ) => {
     (async () => {
@@ -58,27 +51,12 @@ async function updateBadge(): Promise<void> {
   try {
     const queue = await CaptureStore.getSyncQueue();
     if (queue.length > 0) {
-      await chrome.action.setBadgeText({ text: String(queue.length) });
-      await chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' }); // Amber badge for pending sync
+      await ext.action.setBadgeText({ text: String(queue.length) });
+      await ext.action.setBadgeBackgroundColor({ color: '#f59e0b' });
     } else {
-      await chrome.action.setBadgeText({ text: '' });
+      await ext.action.setBadgeText({ text: '' });
     }
   } catch {
     // Ignore badge errors in background
-  }
-}
-
-async function broadcastSettingsChange(settings: unknown): Promise<void> {
-  try {
-    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
-    await Promise.all(tabs.filter((tab) => tab.id !== undefined).map(async (tab) => {
-      try {
-        await chrome.tabs.sendMessage(tab.id!, { type: 'SETTINGS_UPDATED', payload: settings });
-      } catch {
-        // Content scripts can disappear during navigation; no retry is needed.
-      }
-    }));
-  } catch {
-    // This advisory notification must never affect browser navigation.
   }
 }

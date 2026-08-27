@@ -18,9 +18,14 @@ export interface CaptureContent {
 
 export interface CaptureMetadata {
   capturedAt: string;
+  firstSeenAt?: string;
+  lastSeenAt?: string;
+  visitCount?: number;
+  visitHistory?: string[];
   contentHash?: string;
   publishedAt?: string;
   description?: string;
+  domain?: string;
 }
 
 export interface CaptureEngagement {
@@ -54,6 +59,7 @@ export interface KnowledgeCapture {
     platform: string;
     url: string;
     canonicalUrl?: string;
+    domain?: string;
     title?: string;
     author?: string;
     channel?: string;

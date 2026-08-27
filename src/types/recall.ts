@@ -29,4 +29,6 @@ export interface MemorySaveResult {
   memory: KnowledgeCapture;
   saved: boolean;
   duplicate: boolean;
+  isNew?: boolean;
+  visitCount?: number;
 }

@@ -1,21 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MemShiftSettings, DEFAULT_SETTINGS } from '../../types/settings';
+import { logger } from '../../utils/logger';
 import { ExtensionMessage, MessageResponse } from '../../types/messages';
+import { ext, hasExtensionApi } from '../../shared/browser-api';
 
 export function useSettings() {
   const [settings, setSettings] = useState<MemShiftSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
 
   const fetchSettings = useCallback(async () => {
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    if (hasExtensionApi() && ext.runtime?.sendMessage) {
       try {
         const msg: ExtensionMessage = { type: 'GET_SETTINGS' };
-        const res = (await chrome.runtime.sendMessage(msg)) as MessageResponse<MemShiftSettings>;
+        const res = (await ext.runtime.sendMessage(msg)) as MessageResponse<MemShiftSettings>;
         if (res && res.success) {
           setSettings(res.data);
         }
       } catch (err) {
-        console.warn('Failed to fetch settings from background:', err);
+        logger.warn('Failed to fetch settings from background', err);
       }
     }
     setLoading(false);
@@ -36,15 +38,15 @@ export function useSettings() {
         privacy: { ...prev.privacy, ...(partial.privacy || {}) },
       }));
 
-      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      if (hasExtensionApi() && ext.runtime?.sendMessage) {
         try {
           const msg: ExtensionMessage = { type: 'SETTINGS_UPDATED', payload: partial };
-          const res = (await chrome.runtime.sendMessage(msg)) as MessageResponse<MemShiftSettings>;
+          const res = (await ext.runtime.sendMessage(msg)) as MessageResponse<MemShiftSettings>;
           if (res && res.success) {
             setSettings(res.data);
           }
         } catch (err) {
-          console.warn('Failed to update settings in background:', err);
+          logger.warn('Failed to update settings in background', err);
         }
       }
     },

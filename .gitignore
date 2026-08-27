@@ -5,12 +5,19 @@
 
 # IDE
 .idea/
+.vscode/
 
 # Dependencies
 node_modules/
 
 # Build output
 dist/
+release/
 
 # Logs
 *.log
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db

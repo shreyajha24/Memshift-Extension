@@ -22,7 +22,10 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({ memory, result, onOpen }
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="line-clamp-2 text-sm font-semibold text-white">{getMemoryTitle(memory)}</div>
-          <div className="mt-1 text-[11px] text-slate-400">{getSourceLabel(memory)} · {formatMemoryDate(memory.metadata.capturedAt)}</div>
+          <div className="mt-1 text-[11px] text-slate-400">
+            {getSourceLabel(memory)} · {formatMemoryDate(memory.metadata.lastSeenAt || memory.metadata.capturedAt)}
+            {memory.metadata.visitCount && memory.metadata.visitCount > 1 ? ` · ${memory.metadata.visitCount} visits` : ''}
+          </div>
         </div>
         <div className="shrink-0 rounded-md border border-slate-700 px-1.5 py-1 text-[10px] font-semibold text-sky-300">
           Priority {memory.intelligence.priorityScore}

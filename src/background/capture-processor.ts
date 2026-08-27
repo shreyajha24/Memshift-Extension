@@ -6,13 +6,21 @@ import { CaptureStore } from '../storage/capture-store';
 import { LocalRuleClassifier } from '../knowledge/classifier';
 import { KnowledgeRepository } from '../storage/knowledge-repository';
 import { RelationshipEngine } from '../knowledge/relationship-engine';
+import { NavigationDeduplicator } from '../core/capture/navigation-deduplicator';
+import { normalizeUrl } from '../shared/utils';
 
 export class CaptureProcessor {
-  public static async process(raw: RawExtractedData): Promise<{ saved: boolean; duplicate: boolean }> {
+  public static async process(
+    raw: RawExtractedData,
+    options?: { forceNewVisit?: boolean }
+  ): Promise<{ saved: boolean; duplicate: boolean }> {
     const settings = await SettingsStore.getSettings();
     if (!PrivacyPolicyEngine.isMasterEnabled(settings)) {
       return { saved: false, duplicate: false };
     }
+
+    const canonicalUrl = normalizeUrl(raw.canonicalUrl || raw.url, settings.privacy.anonymizeUrlParams);
+    const isRapidDuplicate = options?.forceNewVisit ? false : NavigationDeduplicator.isRapidDuplicateEvent(canonicalUrl);
 
     const capture = CaptureBuilder.build(raw, settings);
 
@@ -27,34 +35,36 @@ export class CaptureProcessor {
       );
 
       // Attach concepts and inferred parent topics into intelligence for recall use
-      // keep original fields untouched
       capture.intelligence.concepts = classification.concepts.map((c) => c.id);
       capture.intelligence.parentTopics = classification.parentTopics;
 
-      // Save memory first
-      const saved = await CaptureStore.saveIfNew(capture);
-      if (!saved) return { saved: false, duplicate: true };
+      // Atomically record visit
+      const result = await CaptureStore.recordVisit(capture, {
+        incrementVisitCount: !isRapidDuplicate,
+      });
 
       // Index into knowledge repository
-      await KnowledgeRepository.indexMemory(capture);
+      await KnowledgeRepository.indexMemory(result.memory);
 
       // Discover relationships with lightweight engine
-      await RelationshipEngine.discoverRelationships(capture);
+      await RelationshipEngine.discoverRelationships(result.memory);
 
       if (settings.privacy.backendSyncEnabled) {
-        await BackendClient.sendCapture(capture);
+        await BackendClient.sendCapture(result.memory);
       }
 
-      return { saved: true, duplicate: false };
+      return { saved: true, duplicate: !result.isNew };
     } catch {
       // classification/indexing must not break capture flow
       try {
-        const saved = await CaptureStore.saveIfNew(capture);
-        if (saved && settings.privacy.backendSyncEnabled) await BackendClient.sendCapture(capture);
+        const result = await CaptureStore.recordVisit(capture, {
+          incrementVisitCount: !isRapidDuplicate,
+        });
+        if (settings.privacy.backendSyncEnabled) await BackendClient.sendCapture(result.memory);
+        return { saved: true, duplicate: !result.isNew };
       } catch {
-        // swallow
+        return { saved: false, duplicate: false };
       }
-      return { saved: true, duplicate: false };
     }
   }
 }

@@ -17,10 +17,7 @@ export const MemoryDetail: React.FC<MemoryDetailProps> = ({ memory, onBack, onDe
 
   const openOriginal = () => {
     const url = memory.source.canonicalUrl || memory.source.url;
-    if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
-      void chrome.tabs.create({ url });
-      return;
-    }
+    // Popup context: window.open avoids requiring the tabs permission.
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -51,8 +48,10 @@ export const MemoryDetail: React.FC<MemoryDetailProps> = ({ memory, onBack, onDe
 
       <dl className="grid grid-cols-2 gap-2 text-xs">
         <Metric label="Priority score" value={String(memory.intelligence.priorityScore)} />
+        <Metric label="Visit count" value={String(memory.metadata.visitCount || 1)} />
+        <Metric label="First seen" value={formatFullDate(memory.metadata.firstSeenAt || memory.metadata.capturedAt)} />
+        <Metric label="Last visited" value={formatFullDate(memory.metadata.lastSeenAt || memory.metadata.capturedAt)} />
         <Metric label="Capture method" value={memory.captureMethod || 'automatic'} />
-        <Metric label="Timeline" value={formatFullDate(memory.metadata.capturedAt)} />
         <Metric label="Processing" value={memory.processingStatus || 'stored'} />
         <Metric label="Sync status" value={syncStatusLabel(memory)} />
         <Metric label="Local storage" value={memory.privacy.locallyProcessed ? 'Saved locally' : 'Unknown'} />

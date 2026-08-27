@@ -1,11 +1,68 @@
 import { EXTRACTION_LIMITS } from './constants';
 
+const TRACKING_PARAMS = new Set([
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'utm_id',
+  'utm_name',
+  'utm_reader',
+  'utm_viz_id',
+  'utm_pubreferrer',
+  'utm_swu',
+  'fbclid',
+  'gclid',
+  'gclsrc',
+  'dclid',
+  'msclkid',
+  'yclid',
+  'mc_cid',
+  'mc_eid',
+  'twclid',
+  'igshid',
+  'wbraid',
+  'gbraid',
+  '_ga',
+  '_gl',
+  '_hsenc',
+  '_hsmi',
+  'hsctatracking',
+  'hsa_cam',
+  'hsa_grp',
+  'hsa_mt',
+  'hsa_src',
+  'hsa_ad',
+  'hsa_acc',
+  'hsa_net',
+  'hsa_kw',
+  'hsa_tgt',
+  'hsa_ver',
+  'ref',
+  'ref_src',
+  'ref_url',
+  'source',
+  'action_object_map',
+  'action_type_map',
+  'action_ref_map',
+  'spm_id',
+  'spm',
+  'from_weibo',
+  'sc_src',
+  'sc_llid',
+  'vero_id',
+  'vero_conv',
+  'mkt_tok',
+]);
+
 /**
- * Normalizes a URL by removing tracking query parameters and standardizing protocols.
+ * Normalizes a URL by removing tracking query parameters, hashes, and standardizing protocols/paths.
  */
 export function normalizeUrl(rawUrl: string, stripTracking = true): string {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
   try {
-    const urlObj = new URL(rawUrl);
+    const urlObj = new URL(rawUrl.trim());
 
     // Normalize protocol and hostname to lowercase
     urlObj.protocol = urlObj.protocol.toLowerCase();
@@ -20,11 +77,11 @@ export function normalizeUrl(rawUrl: string, stripTracking = true): string {
     if (urlObj.hostname.includes('youtube.com') || urlObj.hostname === 'youtu.be') {
       let videoId = '';
       if (urlObj.hostname === 'youtu.be') {
-        videoId = urlObj.pathname.slice(1);
+        videoId = urlObj.pathname.replace(/^\/+/, '').split('/')[0] || '';
       } else if (urlObj.pathname.startsWith('/watch')) {
         videoId = urlObj.searchParams.get('v') || '';
       } else if (urlObj.pathname.startsWith('/shorts/')) {
-        videoId = urlObj.pathname.split('/shorts/')[1] || '';
+        videoId = urlObj.pathname.split('/shorts/')[1]?.split('/')[0] || '';
       }
 
       if (videoId) {
@@ -32,33 +89,41 @@ export function normalizeUrl(rawUrl: string, stripTracking = true): string {
       }
     }
 
+    // Always strip hash fragments for page identity
+    urlObj.hash = '';
+
     // Strip tracking parameters
     if (stripTracking) {
-      const trackingParams = [
-        'utm_source',
-        'utm_medium',
-        'utm_campaign',
-        'utm_term',
-        'utm_content',
-        'fbclid',
-        'gclid',
-        'yclid',
-        'mc_cid',
-        'mc_eid',
-        'ref',
-        'source',
-        'action_object_map',
-        'action_type_map',
-        'action_ref_map',
-      ];
-      for (const param of trackingParams) {
-        urlObj.searchParams.delete(param);
-      }
+      const keysToDelete: string[] = [];
+      urlObj.searchParams.forEach((_val, key) => {
+        if (TRACKING_PARAMS.has(key.toLowerCase())) {
+          keysToDelete.push(key);
+        }
+      });
+      keysToDelete.forEach((key) => urlObj.searchParams.delete(key));
     }
 
-    // Remove trailing slash for root paths if no search params
+    // Sort remaining search parameters deterministically
+    const entries = Array.from(urlObj.searchParams.entries()).sort(([aKey, aVal], [bKey, bVal]) => {
+      const keyComp = aKey.localeCompare(bKey);
+      return keyComp !== 0 ? keyComp : aVal.localeCompare(bVal);
+    });
+
+    urlObj.search = '';
+    for (const [k, v] of entries) {
+      urlObj.searchParams.append(k, v);
+    }
+
+    // Normalize pathname: collapse duplicate slashes and remove trailing slash for non-root paths
+    let pathname = urlObj.pathname.replace(/\/+/g, '/');
+    if (pathname.length > 1 && pathname.endsWith('/')) {
+      pathname = pathname.slice(0, -1);
+    }
+    urlObj.pathname = pathname;
+
+    // Remove trailing slash on root domain if no search query exists
     let normalized = urlObj.toString();
-    if (normalized.endsWith('/') && urlObj.pathname === '/') {
+    if (normalized.endsWith('/') && urlObj.pathname === '/' && !urlObj.search) {
       normalized = normalized.slice(0, -1);
     }
 
@@ -66,6 +131,38 @@ export function normalizeUrl(rawUrl: string, stripTracking = true): string {
   } catch {
     return rawUrl.trim().slice(0, EXTRACTION_LIMITS.MAX_URL_CHARS);
   }
+}
+
+/**
+ * Extracts a clean root domain from a URL.
+ */
+export function extractDomain(rawUrl: string): string {
+  try {
+    const urlObj = new URL(rawUrl.trim());
+    return urlObj.hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Generates a stable deterministic memory ID from a canonical URL.
+ */
+export function generateMemoryId(canonicalUrl: string): string {
+  const normalized = normalizeUrl(canonicalUrl);
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const hex = (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(12, '0');
+  return `mem_${hex}`;
 }
 
 /**

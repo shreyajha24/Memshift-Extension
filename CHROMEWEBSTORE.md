@@ -46,9 +46,10 @@ MemShift is fundamentally different: it captures **only what you intentionally c
 
 | Permission | Review Team Plain-English Justification |
 |---|---|
-| `activeTab` | Required to temporarily access the URL, title, and DOM of the currently active tab exclusively when the user clicks the extension action or capture button. No access is granted to inactive tabs or background browsing. |
-| `scripting` | Required to execute the local content extractor function into the active tab to extract article text, YouTube timestamps, or GitHub documentation upon explicit user request. |
-| `storage` | Required to store user settings, priority keywords, offline capture queue, and session state locally in `chrome.storage.local`. |
+| `storage` | Required to store user settings, priority keywords, local memories, knowledge indexes, offline capture queue, and session state in extension local storage. |
+| Host access (`http://*/*`, `https://*/*`) | Required so the content script can run on public web pages the user visits **only when MemShift’s master toggle is ON**, to extract eligible knowledge content the user has chosen to remember. No browsing-history API is used. |
+
+**Not requested:** `tabs`, `history`, `bookmarks`, `cookies`, `webNavigation`, `management`, `downloads`, `alarms`.
 
 ---
 

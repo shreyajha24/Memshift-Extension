@@ -7,6 +7,7 @@ import { SourceDetector } from './source-detector';
 import { ArticleExtractor } from './web/article-extractor';
 import { GitHubExtractor } from './github/github-extractor';
 import { YouTubeExtractor } from './youtube/youtube-extractor';
+import { ext } from '../shared/browser-api';
 
 const ARTICLE_TIMEOUT_MS = 5_000;
 const YOUTUBE_TIMEOUT_MS = 8_000;
@@ -65,11 +66,11 @@ async function captureOnce(): Promise<void> {
   const captureGeneration = generation;
   if (!enabled || !isEligiblePage()) return;
   try {
-    const stored = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
+    const stored = await ext.storage.local.get(STORAGE_KEYS.SETTINGS);
     const settings = stored[STORAGE_KEYS.SETTINGS] as MemShiftSettings | undefined;
     if (!settings?.enabled || captureGeneration !== generation) return;
     const raw = await extract(settings);
-    if (raw && enabled && captureGeneration === generation) await chrome.runtime.sendMessage({ type: 'PAGE_CAPTURED', payload: raw } satisfies ExtensionMessage);
+    if (raw && enabled && captureGeneration === generation) await ext.runtime.sendMessage({ type: 'PAGE_CAPTURED', payload: raw } satisfies ExtensionMessage);
   } catch {
     // Best-effort extraction must never affect the host page.
   }
@@ -99,16 +100,16 @@ function setEnabled(value: boolean): void {
   scheduleCapture();
 }
 
-chrome.runtime.onMessage.addListener((message: ExtensionMessage) => {
+ext.runtime.onMessage.addListener((message: ExtensionMessage) => {
   if ((message.type === 'SETTINGS_UPDATED' || message.type === 'UPDATE_SETTINGS') && typeof message.payload.enabled === 'boolean') setEnabled(message.payload.enabled);
 });
-chrome.storage.onChanged.addListener((changes, areaName) => {
+ext.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes[STORAGE_KEYS.SETTINGS]) setEnabled(Boolean((changes[STORAGE_KEYS.SETTINGS].newValue as MemShiftSettings | undefined)?.enabled));
 });
 
 // OFF means no extraction and no page-route observation. Storage is only read to
 // obtain the user-selected master toggle; content is never sent to a backend here.
-void chrome.storage.local.get(STORAGE_KEYS.SETTINGS).then((stored) => {
+void ext.storage.local.get(STORAGE_KEYS.SETTINGS).then((stored) => {
   const settings = (stored[STORAGE_KEYS.SETTINGS] as MemShiftSettings | undefined) || DEFAULT_SETTINGS;
   setEnabled(settings.enabled);
 }).catch(() => setEnabled(false));

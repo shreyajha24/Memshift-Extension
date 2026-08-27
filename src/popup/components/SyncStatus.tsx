@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
 import { Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { ExtensionMessage, MessageResponse, SyncStatusInfo } from '../../types/messages';
+import { STORAGE_KEYS } from '../../shared/constants';
+import { ext, hasExtensionApi, ExtStorageChange } from '../../shared/browser-api';
 
 export const SyncStatus: React.FC = () => {
   const [syncInfo, setSyncInfo] = useState<SyncStatusInfo>({
@@ -11,10 +14,10 @@ export const SyncStatus: React.FC = () => {
   const [syncing, setSyncing] = useState(false);
 
   const fetchSyncStatus = async () => {
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    if (hasExtensionApi() && ext.runtime?.sendMessage) {
       try {
         const msg: ExtensionMessage = { type: 'GET_SYNC_STATUS' };
-        const res = (await chrome.runtime.sendMessage(msg)) as MessageResponse<SyncStatusInfo>;
+        const res = (await ext.runtime.sendMessage(msg)) as MessageResponse<SyncStatusInfo>;
         if (res && res.success) {
           setSyncInfo(res.data);
         }
@@ -27,32 +30,32 @@ export const SyncStatus: React.FC = () => {
   useEffect(() => {
     fetchSyncStatus();
 
-    if (typeof chrome === 'undefined' || !chrome.storage?.onChanged) {
+    if (!hasExtensionApi() || !ext.storage?.onChanged) {
       return undefined;
     }
 
     const handleStorageChange = (
-      changes: { [key: string]: chrome.storage.StorageChange },
+      changes: { [key: string]: ExtStorageChange },
       areaName: string
     ) => {
-      if (areaName === 'local' && changes.memshift_offline_queue_v1) {
+      if (areaName === 'local' && changes[STORAGE_KEYS.OFFLINE_QUEUE]) {
         void fetchSyncStatus();
       }
     };
 
-    chrome.storage.onChanged.addListener(handleStorageChange);
-    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+    ext.storage.onChanged.addListener(handleStorageChange);
+    return () => ext.storage.onChanged.removeListener(handleStorageChange);
   }, []);
 
   const handleSyncNow = async () => {
     setSyncing(true);
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    if (hasExtensionApi() && ext.runtime?.sendMessage) {
       try {
         const msg: ExtensionMessage = { type: 'SYNC_QUEUE_NOW' };
-        await chrome.runtime.sendMessage(msg);
+        await ext.runtime.sendMessage(msg);
         await fetchSyncStatus();
       } catch (err) {
-        console.warn('Manual sync failed:', err);
+        logger.warn('Manual sync failed', err);
       }
     }
     setSyncing(false);

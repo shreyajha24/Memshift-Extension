@@ -3,6 +3,7 @@ import { STORAGE_KEYS } from '../../shared/constants';
 import { MemoryRepository } from '../../storage/memory-repository';
 import { KnowledgeCapture } from '../../types/capture';
 import { RecallResult } from '../../types/recall';
+import { ext, hasExtensionApi, ExtStorageChange } from '../../shared/browser-api';
 
 export interface MemoryViewState {
   count: number;
@@ -57,12 +58,12 @@ export function useMemories(): MemoryViewState {
   useEffect(() => {
     void refresh();
 
-    if (typeof chrome === 'undefined' || !chrome.storage?.onChanged) {
+    if (!hasExtensionApi() || !ext.storage?.onChanged) {
       return undefined;
     }
 
     const handleStorageChange = (
-      changes: { [key: string]: chrome.storage.StorageChange },
+      changes: { [key: string]: ExtStorageChange },
       areaName: string
     ) => {
       if (areaName === 'local' && changes[STORAGE_KEYS.LOCAL_CAPTURES]) {
@@ -70,8 +71,8 @@ export function useMemories(): MemoryViewState {
       }
     };
 
-    chrome.storage.onChanged.addListener(handleStorageChange);
-    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+    ext.storage.onChanged.addListener(handleStorageChange);
+    return () => ext.storage.onChanged.removeListener(handleStorageChange);
   }, [refresh]);
 
   return useMemo(() => ({

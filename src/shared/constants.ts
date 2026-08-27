@@ -14,6 +14,7 @@ export const STORAGE_KEYS = {
   AUTH_SESSION: 'memshift_auth_session_v1',
   OFFLINE_QUEUE: 'memshift_offline_queue_v1',
   LOCAL_CAPTURES: 'memshift_local_captures_v1',
+  CRYPTO_META: 'memshift_crypto_meta_v1',
 } as const;
 
 // Embedding configuration

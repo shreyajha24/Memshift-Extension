@@ -4,11 +4,12 @@ import { CaptureStore } from '../storage/capture-store';
 import { CaptureProcessor } from './capture-processor';
 import { BackendClient } from './backend-client';
 import { AuthManager } from './auth-manager';
+import { ExtMessageSender } from '../shared/browser-api';
 
 export class MessageRouter {
   public static async handleMessage(
     message: ExtensionMessage,
-    _sender: chrome.runtime.MessageSender
+    _sender: ExtMessageSender
   ): Promise<MessageResponse> {
     try {
       switch (message.type) {

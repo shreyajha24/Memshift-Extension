@@ -1,160 +1,153 @@
 # MemShift — Your Internet Memory
 
 > **Privacy-first personal memory layer for the internet.**
-> Official Chrome / Chromium Browser Extension & Supabase Backend Architecture.
+> Official Chromium browser extension (Chrome, Edge, Brave) with a shared codebase and optional Firefox prep package.
 
 ---
 
-## 1. Overview
+## Supported browsers
+
+| Browser | Status |
+|---|---|
+| **Google Chrome** | Supported — Chromium MV3 package |
+| **Microsoft Edge** | Supported — same Chromium package |
+| **Brave** | Supported — load the Chrome/Chromium package |
+| **Mozilla Firefox** | Planned / architecture-ready — **not runtime-validated** |
+
+See [docs/BROWSER_COMPAT.md](docs/BROWSER_COMPAT.md) for packaging details and Firefox TODOs.
+
+Build validation ≠ store publication ≠ runtime QA. Do not claim a browser was “tested successfully” until the ZIP/unpacked build has been loaded in that browser.
+
+---
+
+## Overview
 
 MemShift turns useful insights from web browsing into a structured, interconnected, and instantly recallable personal knowledge graph.
 
-### The Core Loop
 ```
 CONSUME ──▶ CAPTURE ──▶ UNDERSTAND ──▶ CONNECT ──▶ REMEMBER ──▶ RECALL
- (Browser)   (Extension)   (Local+AI)    (Graph)    (Database)    (Hybrid Search)
+ (Browser)   (Extension)   (Local+AI)    (Graph)    (Local/DB)    (Hybrid Search)
 ```
 
-- **Browser Extension**: Responsible for **Capture + Local Understanding**.
-- **Supabase PostgreSQL & pgvector**: Responsible for **Connect + Remember + Recall**.
+- **Browser Extension**: Capture + local understanding + local recall.
+- **Supabase (optional sync)**: Connect + remember + semantic recall when backend sync is enabled.
+
+Capture is **toggle-gated**. MemShift does **not** silently store every visited URL.
 
 ---
 
-## 2. Key Features
+## Development
 
-- **Toggle-Controlled Automatic Capture**: When MemShift is ON, it extracts only eligible public knowledge pages; when OFF, it performs no extraction or sync.
-- **YouTube Memory Anchors**: Captures playback timestamps (`12:43`) and optional transcripts without third-party scrapers.
-- **Noise-Free Web Extraction**: Strips ads, navigation bars, and cookie banners from technical articles.
-- **Public GitHub Support**: Extracts repository documentation, README markdown, and code snippets safely.
-- **Deterministic Local Relevance**: Instant 0–100% priority scoring matching user-defined learning keywords.
-- **Local-First Capture**: Eligible content is processed and stored locally before optional backend synchronization.
-- **Offline-First Resilience**: Local queue ensures captures are preserved if offline, automatically syncing when connected.
-- **Hybrid Semantic Search**: Combines pgvector cosine similarity with PostgreSQL full-text keyword ranking.
-- **Row Level Security (RLS)**: 100% user data isolation enforced cryptographically at the database level.
+```bash
+npm install
+npm run generate-icons   # if icons are missing
+npm run dev
+```
+
+### Validation
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+### Browser-specific builds
+
+```bash
+npm run build:chrome
+npm run build:edge
+npm run build:firefox   # structural package only; Firefox runtime not validated
+```
+
+Outputs land in `release/<target>/` with `manifest.json` version taken from `package.json`.
+
+### Store packaging (ZIP)
+
+```bash
+npm run package:chrome
+npm run package:edge
+# npm run package:firefox   # only for architecture experiments until runtime-tested
+```
+
+Produces:
+
+- `release/memshift-chrome-v1.0.0.zip`
+- `release/memshift-edge-v1.0.0.zip`
+
+Upload these ZIP files manually via the Chrome Web Store / Edge Add-ons developer dashboards. This repo does **not** automate store submission.
+
+### Load unpacked (dev)
+
+1. `npm run build` (or `npm run build:chrome`)
+2. Open `chrome://extensions`, `edge://extensions`, or `brave://extensions`
+3. Enable **Developer mode** → **Load unpacked** → select `dist/` or `release/chrome/`
 
 ---
 
-## 3. Project Structure
+## Permissions (privacy-first)
+
+| Permission | Why it is required |
+|---|---|
+| `storage` | Settings, local memories, knowledge indexes, auth session, offline queue |
+| Host access `http(s)://*/*` | Content scripts on public pages for **toggle-gated** capture |
+
+**Not requested:** `history`, `bookmarks`, `cookies`, `tabs`, `webNavigation`, `management`, `downloads`.
+
+Settings sync to open pages via `storage.onChanged` — no tab enumeration.
+
+---
+
+## Privacy model
+
+- Master toggle OFF → no extraction, no capture, no sync.
+- No browsing-history permission; MemShift is not a silent tracker.
+- Forms, passwords, cookies, and website storage are never read.
+- Sensitive fields (transcripts, tokens, keys) are redacted by the logger.
+- Never put service-role keys or AI provider secrets in the extension (see `.env.example`).
+
+---
+
+## Project structure
 
 ```text
 memshift-extension/
-├── public/
-│   ├── manifest.json              # Manifest V3 (activeTab, scripting, storage)
-│   └── icons/                     # Generated icon assets (16, 32, 48, 128px)
+├── config/manifests/          # chrome.json, edge.json, firefox.json
+├── scripts/                   # build-extension, package-extension, validate-release
+├── release/                   # generated packages + ZIPs (gitignored)
+├── public/manifest.json       # Chromium template used by Vite copy
 ├── src/
-│   ├── popup/                     # React 19 + Tailwind popup UI
-│   │   ├── components/            # Master toggle, Preview, Options, Keywords
-│   │   └── hooks/                 # Reactive settings and capture hooks
-│   ├── background/                # Service worker, message router, offline sync
-│   ├── content/                   # Source detector, YouTube, Web, GitHub extractors
-│   ├── core/                      # Scorer, keyword matcher, deduplicator, builder
-│   ├── storage/                   # Typed chrome.storage wrappers
-│   ├── privacy/                   # Master toggle and boundary policies
-│   ├── types/                     # Strict TypeScript interfaces
-│   └── shared/                    # Constants, sanitizers, and utilities
-├── supabase/
-│   ├── config.toml                # Supabase CLI local configuration
-│   ├── migrations/                # SQL schema, pgvector, RLS, Hybrid search, Graph
-│   └── functions/                 # Deno Edge Functions (process-capture, embeddings, search)
-├── docs/                          # Architecture, Database, Privacy, Security, API specs
-└── tests/                         # Vitest unit and integration test suite
+│   ├── background/            # MV3 service worker
+│   ├── content/               # Capture content scripts
+│   ├── popup/                 # React recall UI
+│   ├── storage/               # Local memory + knowledge indexes
+│   ├── knowledge/             # Classification / relationships
+│   ├── shared/browser-api.ts  # chrome/browser API accessor
+│   └── ...
+├── docs/BROWSER_COMPAT.md
+└── tests/
 ```
 
 ---
 
-## 4. Getting Started
+## Versioning
 
-### 4.1 Prerequisites
-- **Node.js**: v18+ (tested on v24.x)
-- **npm**: v9+
-- **Supabase CLI** (optional, for local backend development)
-
-### 4.2 Installation
-```bash
-# Clone the repository
-git clone https://github.com/JasvinderKaur77/memshift-extension.git
-cd memshift-extension
-
-# Install dependencies
-npm install
-
-# Generate icon assets (if needed)
-npm run generate-icons
-```
-
-### 4.3 Running Unit & Integration Tests
-```bash
-npm test
-```
-
-### 4.4 Building the Extension
-```bash
-npm run build
-```
-This outputs the complete Manifest V3 extension bundle into the `dist/` directory.
+Extension version is defined once in `package.json` (`version`).
+Release scripts inject that value into each browser `manifest.json`. Keep them in sync by never hard-coding a second version.
 
 ---
 
-## 5. Loading Unpacked Extension in Chrome / Edge / Brave
+## Documentation
 
-1. Open your browser and navigate to the extension management page:
-   - **Google Chrome**: `chrome://extensions/`
-   - **Microsoft Edge**: `edge://extensions/`
-   - **Brave Browser**: `brave://extensions/`
-2. Enable **Developer mode** (toggle in the top-right corner).
-3. Click **Load unpacked**.
-4. Select the `dist/` folder inside this repository.
-5. Click the MemShift icon in your browser toolbar to launch!
+- [Browser compatibility](docs/BROWSER_COMPAT.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Privacy](docs/PRIVACY.md)
+- [Security](docs/SECURITY.md)
+- [Chrome Web Store listing copy](CHROMEWEBSTORE.md)
 
 ---
 
-## 6. Supabase Database & Migrations
+## License
 
-MemShift database changes are strictly version-controlled via SQL migrations:
-
-```bash
-# Local Supabase development
-supabase start
-
-# Apply migrations
-supabase db reset
-
-# Deploy Edge Functions
-supabase functions deploy process-capture
-supabase functions deploy generate-embedding
-supabase functions deploy search-memory
-```
-
-### Migration Order:
-1. `001_initial_schema.sql` — Profiles, sources, captures, topics, concepts, sync queue.
-2. `002_pgvector.sql` — pgvector extension and 1536-dimensional embeddings table.
-3. `003_rls.sql` — Row Level Security policies guaranteeing user isolation.
-4. `004_search.sql` — Full-text GIN indexes & `match_memories_hybrid` search RPC.
-5. `005_knowledge_graph.sql` — `knowledge_edges` table and graph traversal RPCs.
-
----
-
-## 7. Security & Privacy Guarantees
-
-- **No Secrets in Extension**: The browser bundle contains zero service role keys or AI provider secrets.
-- **Untrusted Client Protection**: Identity is cryptographically verified from the Supabase Auth JWT (`auth.uid()`).
-- **No Background Scraping**: Tab content is read solely upon user interaction.
-- **Content Limits**: Strict bounds on text payload lengths to prevent denial-of-service.
-
----
-
-## 8. Documentation
-
-Detailed architectural and operational documentation is available in `docs/`:
-- [FeedBrain Historical Context & Analysis](docs/FEEDBRAIN_REFERENCE.md)
-- [System Architecture](docs/ARCHITECTURE.md)
-- [Database Schema & Search Strategy](docs/DATABASE.md)
-- [Privacy Policy & Guarantees](docs/PRIVACY.md)
-- [Security & Threat Model](docs/SECURITY.md)
-- [API & Edge Functions Contract](docs/API.md)
-- [Chrome Web Store Listing Metadata](CHROMEWEBSTORE.md)
-
----
-
-## 9. License
 MIT License.

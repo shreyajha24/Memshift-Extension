@@ -41,18 +41,22 @@ describe('MemoryRepository', () => {
     await expect(MemoryRepository.count()).resolves.toBe(2);
   });
 
-  it('does not save duplicate memories', async () => {
+  it('does not save duplicate memories and increments visitCount', async () => {
     const first = makeMemory('first', 'Understanding Redis Caching');
     const second = makeMemory('second', 'Understanding Redis Caching');
     second.source.url = first.source.url;
     second.source.canonicalUrl = first.source.canonicalUrl;
     second.metadata.contentHash = first.metadata.contentHash;
 
-    await MemoryRepository.save(first);
+    const res1 = await MemoryRepository.save(first);
+    expect(res1.saved).toBe(true);
+    expect(res1.duplicate).toBe(false);
+
     const duplicate = await MemoryRepository.save(second);
 
-    expect(duplicate.saved).toBe(false);
+    expect(duplicate.saved).toBe(true);
     expect(duplicate.duplicate).toBe(true);
+    expect(duplicate.memory.metadata.visitCount).toBe(2);
     await expect(MemoryRepository.count()).resolves.toBe(1);
   });
 

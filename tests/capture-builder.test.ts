@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CaptureBuilder, RawExtractedData } from '../src/core/capture/capture-builder';
+import { generateMemoryId } from '../src/shared/utils';
 import { DEFAULT_SETTINGS } from '../src/types/settings';
 
 describe('CaptureBuilder', () => {
@@ -26,5 +27,30 @@ describe('CaptureBuilder', () => {
     expect(capture.intelligence.matchedKeywords).toContain('System Design');
     expect(capture.intelligence.topicCandidates).toContain('Databases');
     expect(capture.privacy.locallyProcessed).toBe(true);
+  });
+
+  it('uses a deterministic memory id and initializes visit metadata', () => {
+    const raw: RawExtractedData = {
+      sourceType: 'article',
+      platform: 'Web',
+      url: 'https://example.com/guide?utm_source=newsletter#intro',
+      canonicalUrl: 'https://example.com/guide?utm_source=newsletter#intro',
+      title: 'Guide',
+      text: 'Content about Redis caching.',
+    };
+
+    const first = CaptureBuilder.build(raw, DEFAULT_SETTINGS);
+    const second = CaptureBuilder.build(
+      { ...raw, url: 'https://example.com/guide/', canonicalUrl: 'https://example.com/guide/' },
+      DEFAULT_SETTINGS
+    );
+
+    expect(first.id).toBe(generateMemoryId('https://example.com/guide'));
+    expect(first.id).toBe(second.id);
+    expect(first.id).toMatch(/^mem_/);
+    expect(first.metadata.visitCount).toBe(1);
+    expect(first.metadata.firstSeenAt).toBeDefined();
+    expect(first.metadata.lastSeenAt).toBeDefined();
+    expect(first.metadata.visitHistory).toEqual([first.metadata.firstSeenAt]);
   });
 });

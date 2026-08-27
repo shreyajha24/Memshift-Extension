@@ -1,4 +1,3 @@
-import { CaptureDeduplicator } from '../core/capture/deduplicator';
 import { KnowledgeCapture } from '../types/capture';
 import { MemorySaveResult, RecallQuery, RecallResult } from '../types/recall';
 import { CaptureStore } from './capture-store';
@@ -17,13 +16,14 @@ const FIELD_WEIGHTS: Record<SearchField, number> = {
 
 export class MemoryRepository {
   public static async save(memory: KnowledgeCapture): Promise<MemorySaveResult> {
-    const existing = await CaptureStore.getLocalCaptures();
-    if (CaptureDeduplicator.isDuplicate(memory, existing).isDuplicate) {
-      return { memory, saved: false, duplicate: true };
-    }
-
-    await CaptureStore.saveLocalCapture(memory);
-    return { memory, saved: true, duplicate: false };
+    const result = await CaptureStore.recordVisit(memory);
+    return {
+      memory: result.memory,
+      saved: true,
+      duplicate: !result.isNew,
+      isNew: result.isNew,
+      visitCount: result.visitCount,
+    };
   }
 
   public static async getById(id: string): Promise<KnowledgeCapture | undefined> {
@@ -34,7 +34,11 @@ export class MemoryRepository {
   public static async getRecent(limit = 10): Promise<KnowledgeCapture[]> {
     const memories = await CaptureStore.getLocalCaptures();
     return [...memories]
-      .sort((a, b) => new Date(b.metadata.capturedAt).getTime() - new Date(a.metadata.capturedAt).getTime())
+      .sort((a, b) => {
+        const timeB = new Date(b.metadata.lastSeenAt || b.metadata.capturedAt).getTime();
+        const timeA = new Date(a.metadata.lastSeenAt || a.metadata.capturedAt).getTime();
+        return timeB - timeA;
+      })
       .slice(0, limit);
   }
 
@@ -77,7 +81,8 @@ function scoreMemory(memory: KnowledgeCapture, terms: string[]): RecallResult {
 
   if (matchedTerms.size > 0) {
     score += Math.min(10, memory.intelligence.priorityScore / 10);
-    score += recencyBoost(memory.metadata.capturedAt);
+    score += recencyBoost(memory.metadata.lastSeenAt || memory.metadata.capturedAt);
+    score += frequencyBoost(memory.metadata.visitCount || 1);
   }
 
   return {
@@ -127,8 +132,16 @@ function recencyBoost(capturedAt: string): number {
   const captured = new Date(capturedAt).getTime();
   if (Number.isNaN(captured)) return 0;
   const ageDays = Math.max(0, (Date.now() - captured) / 86_400_000);
-  if (ageDays <= 1) return 5;
-  if (ageDays <= 7) return 3;
-  if (ageDays <= 30) return 1;
+  if (ageDays <= 1) return 6;
+  if (ageDays <= 7) return 4;
+  if (ageDays <= 30) return 2;
+  return 0;
+}
+
+function frequencyBoost(visitCount: number): number {
+  if (visitCount >= 10) return 8;
+  if (visitCount >= 5) return 5;
+  if (visitCount >= 3) return 3;
+  if (visitCount >= 2) return 2;
   return 0;
 }

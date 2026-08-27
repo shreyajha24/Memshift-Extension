@@ -2,7 +2,7 @@ import { KnowledgeCapture } from '../../types/capture';
 import { MemShiftSettings } from '../../types/settings';
 import { RelevanceScorer } from '../relevance/scorer';
 import { TopicDetector } from '../knowledge/topic-detector';
-import { generateClientUUID, normalizeUrl } from '../../shared/utils';
+import { generateMemoryId, normalizeUrl, extractDomain } from '../../shared/utils';
 import { sanitizeCapturePayload } from '../../shared/schemas';
 import { PrivacyPolicyEngine } from '../../privacy/privacy-policy';
 
@@ -29,6 +29,7 @@ export class CaptureBuilder {
   public static build(raw: RawExtractedData, settings: MemShiftSettings): KnowledgeCapture {
     const rawUrl = raw.url;
     const canonicalUrl = normalizeUrl(raw.canonicalUrl || raw.url, settings.privacy.anonymizeUrlParams);
+    const domain = extractDomain(canonicalUrl);
     const title = raw.title || 'Untitled Document';
     const excerpt = raw.excerpt || raw.description || '';
     const contentText = raw.text || (raw.transcript ? raw.transcript.map((t) => t.text).join(' ') : '');
@@ -46,14 +47,16 @@ export class CaptureBuilder {
     const topicDiscovery = TopicDetector.detect(relevance.matchedKeywords, title, contentText);
 
     const now = new Date().toISOString();
+    const stableId = generateMemoryId(canonicalUrl);
 
     const rawCapture: KnowledgeCapture = {
-      id: generateClientUUID(),
+      id: stableId,
       source: {
         type: raw.sourceType,
         platform: raw.platform,
         url: rawUrl,
         canonicalUrl,
+        domain,
         title,
         author: raw.author,
         channel: raw.channel,
@@ -66,6 +69,11 @@ export class CaptureBuilder {
       },
       metadata: {
         capturedAt: now,
+        firstSeenAt: now,
+        lastSeenAt: now,
+        visitCount: 1,
+        visitHistory: [now],
+        domain,
         contentHash: raw.contentHash,
         publishedAt: raw.publishedAt,
         description: raw.description,

@@ -1,3 +1,5 @@
+import { logger } from '../../utils/logger';
+
 export interface YouTubeMetadata {
   videoId: string;
   title: string;
@@ -94,7 +96,7 @@ export class YouTubeMetadataExtractor {
         faviconUrl: 'https://www.youtube.com/favicon.ico',
       };
     } catch (err) {
-      console.warn('MemShift: Error extracting YouTube metadata:', err);
+      logger.warn('YouTube metadata extraction failed', err);
       return null;
     }
   }

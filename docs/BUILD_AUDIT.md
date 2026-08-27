@@ -12,11 +12,10 @@ The worker is now only event-driven: install/startup, runtime messages, storage 
 
 ## Intentional permissions
 
-- `storage`: settings, local captures, auth state, and sync queue.
-- `tabs`: one-shot notification to open HTTP/HTTPS content scripts after settings change.
-- `http://*/*` and `https://*/*` host access: automatic capture on public sites.
+- `storage`: settings, local captures, auth state, knowledge indexes, and sync queue.
+- `http://*/*` and `https://*/*` host access: toggle-gated automatic capture on public sites via content scripts.
 
-There are no alarms or network-interception/blocking permissions.
+There are no `tabs`, `alarms`, history, or network-interception/blocking permissions. Settings propagate through `storage.onChanged`.
 
 ## Verification
 
