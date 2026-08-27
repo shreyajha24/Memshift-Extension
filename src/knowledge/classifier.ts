@@ -5,7 +5,15 @@ function normalize(text: string): string {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
+}
+
+function countTerm(text: string, term: string): number {
+  const normalizedTerm = normalize(term);
+  if (!text || !normalizedTerm) return 0;
+  const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return (text.match(new RegExp(`(?:^|\\s)${escaped}(?=\\s|$)`, 'g')) || []).length;
 }
 
 // Local rule-based classifier (MVP)
@@ -38,17 +46,17 @@ export class LocalRuleClassifier {
     for (const concept of CONCEPTS) {
       let score = 0;
       for (const alias of concept.aliases) {
-        const a = normalize(alias);
-        if (a.length === 0) continue;
-        if (textTitle.includes(a)) score += this.TITLE + this.ALIAS;
-        if (textExcerpt.includes(a)) score += this.EXCERPT + this.ALIAS;
-        if (textBody.includes(a)) score += this.BODY;
-        if (textMetadata.includes(a)) score += this.METADATA;
+        if (countTerm(textTitle, alias) > 0) score += this.TITLE + this.ALIAS;
+        if (countTerm(textExcerpt, alias) > 0) score += this.EXCERPT + this.ALIAS;
+        score += Math.min(3, countTerm(textBody, alias)) * this.BODY;
+        score += Math.min(2, countTerm(textMetadata, alias)) * this.METADATA;
       }
       // user priority influence
-      for (const p of prioritySet) {
-        if (concept.aliases.some((al) => normalize(al) === p) || normalize(concept.name) === p) {
-          score += this.USER_PRIORITY;
+      if (score > 0) {
+        for (const p of prioritySet) {
+          if (concept.aliases.some((al) => normalize(al) === p) || normalize(concept.name) === p) {
+            score += this.USER_PRIORITY;
+          }
         }
       }
       if (score > 0) conceptScores.set(concept.id, Math.min(100, Math.round(score)));
