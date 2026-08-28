@@ -53,21 +53,24 @@ The canonical source manifest is `public/manifest.json`. Vite copies it to `dist
 
 After build, `dist/` is the Chrome extension root to load unpacked.
 
-## Chrome Web Store ZIP
+## Private Beta Installation
 
 ```bash
-npm run package:chrome
+npm run package
 ```
 
-This creates `memshift-chrome.zip` from the contents of `dist/`. The archive root contains `manifest.json`; it does not contain a nested project folder, `dist/`, `public/`, or `release/`.
+This creates `release/MemShift-Beta-v<version>.zip`. The ZIP contains only the compiled production extension under a `MemShift/` folder.
 
-## Load Unpacked In Chrome
+To install the temporary private beta before Chrome Web Store publication:
 
-1. Run `npm run build`.
-2. Open `chrome://extensions`.
-3. Enable Developer mode.
-4. Click Load unpacked.
-5. Select `dist/`.
+1. Download the beta ZIP.
+2. Extract it.
+3. Open `chrome://extensions`.
+4. Enable Developer mode.
+5. Click **Load unpacked**.
+6. Select the extracted `MemShift/` folder containing `manifest.json`.
+
+The extracted folder can also be loaded directly from `dist/` during development. This is a temporary beta installation method; MemShift has not been published to the Chrome Web Store.
 
 ## Permissions
 
@@ -124,4 +127,8 @@ Keep `package.json` and `public/manifest.json` versions aligned. `npm run valida
 
 ## License
 
-MIT License.
+MemShift Chrome Extension is licensed under the MIT License.
+
+Copyright (c) 2026 Shreya Jha  
+
+See the [LICENSE](LICENSE) file for the complete license.

@@ -13,8 +13,9 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: 'dist',
+    outDir: resolve(__dirname, 'dist'),
     emptyOutDir: false,
+    sourcemap: false,
     rollupOptions: {
       input: {
         content: resolve(__dirname, 'src/content/index.ts'),

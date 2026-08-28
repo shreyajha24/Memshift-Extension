@@ -9,7 +9,7 @@ import zlib from 'node:zlib';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(__dirname, '..');
 export const DIST = join(ROOT, 'dist');
-export const CHROME_ZIP = join(ROOT, 'memshift-chrome.zip');
+export const RELEASE_DIR = join(ROOT, 'release');
 
 export function readPackageJson() {
   return JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
@@ -74,7 +74,7 @@ function dateToDosDateTime(d) {
   return { dosDate, dosTime };
 }
 
-export function createZipFromDirectory(sourceDir, outZipPath) {
+export function createZipFromDirectory(sourceDir, outZipPath, archiveRoot = '') {
   mkdirSync(dirname(outZipPath), { recursive: true });
 
   const files = walkFiles(sourceDir);
@@ -85,7 +85,8 @@ export function createZipFromDirectory(sourceDir, outZipPath) {
   const { dosDate, dosTime } = dateToDosDateTime(now);
 
   for (const file of files) {
-    const relPosix = relativePosix(sourceDir, file);
+    const fileRelPosix = relativePosix(sourceDir, file);
+    const relPosix = archiveRoot ? `${archiveRoot}/${fileRelPosix}` : fileRelPosix;
     const uncompressedData = readFileSync(file);
     const uncompressedSize = uncompressedData.length;
     const crc = crc32(uncompressedData);

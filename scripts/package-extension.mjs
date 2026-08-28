@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Build + validate + zip the Chrome Web Store package.
- * The ZIP contains the contents of dist/, with manifest.json at archive root.
+ * Build, validate, and zip the private beta package.
+ * The ZIP contains compiled dist/ contents under a MemShift/ folder.
  */
-import { CHROME_ZIP, DIST, ROOT, createZipFromDirectory, listZipEntries } from './release-lib.mjs';
-import { existsSync, rmSync } from 'node:fs';
+import { DIST, RELEASE_DIR, ROOT, createZipFromDirectory, listZipEntries, readPackageJson } from './release-lib.mjs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -34,28 +34,36 @@ const validate = spawnSync(process.execPath, [join(ROOT, 'scripts', 'validate-ch
 });
 if (validate.status !== 0) process.exit(validate.status ?? 1);
 
-if (existsSync(CHROME_ZIP)) rmSync(CHROME_ZIP);
+const manifest = JSON.parse(readFileSync(join(DIST, 'manifest.json'), 'utf8'));
+const zipPath = join(RELEASE_DIR, `MemShift-Beta-v${manifest.version}.zip`);
+if (existsSync(RELEASE_DIR)) rmSync(RELEASE_DIR, { recursive: true, force: true });
 
-console.log('Creating memshift-chrome.zip from dist/ contents...');
-createZipFromDirectory(DIST, CHROME_ZIP);
+console.log(`Creating ${zipPath} from dist/ contents...`);
+createZipFromDirectory(DIST, zipPath, 'MemShift');
 
-if (!existsSync(CHROME_ZIP)) {
+if (!existsSync(zipPath)) {
   console.error('ZIP was not created');
   process.exit(1);
 }
 
-const entries = listZipEntries(CHROME_ZIP);
+const entries = listZipEntries(zipPath);
 const manifests = entries.filter((entry) => entry === 'manifest.json' || entry.endsWith('/manifest.json'));
-const forbiddenTopLevel = entries.filter((entry) => /^(dist|public|release|chrome|edge|firefox)\//.test(entry));
+const forbiddenEntries = entries.filter((entry) => /(^|\/)(dist|public|release|node_modules|\.git|src|tests)(\/|$)/.test(entry));
 
-if (manifests.length !== 1 || manifests[0] !== 'manifest.json') {
-  console.error(`ZIP must contain exactly one root manifest.json; found: ${manifests.join(', ') || '(none)'}`);
+if (manifests.length !== 1 || manifests[0] !== 'MemShift/manifest.json') {
+  console.error(`ZIP must contain exactly one MemShift/manifest.json; found: ${manifests.join(', ') || '(none)'}`);
   process.exit(1);
 }
 
-if (forbiddenTopLevel.length > 0) {
-  console.error(`ZIP contains forbidden top-level package directories: ${forbiddenTopLevel.join(', ')}`);
+if (forbiddenEntries.length > 0) {
+  console.error(`ZIP contains forbidden package entries: ${forbiddenEntries.join(', ')}`);
   process.exit(1);
 }
 
-console.log(`Packaged Chrome Web Store ZIP: ${CHROME_ZIP}`);
+const packageJson = readPackageJson();
+if (manifest.version !== packageJson.version) {
+  console.error(`Packaged manifest version ${manifest.version} does not match package.json version ${packageJson.version}`);
+  process.exit(1);
+}
+
+console.log(`Packaged private beta ZIP: ${zipPath}`);

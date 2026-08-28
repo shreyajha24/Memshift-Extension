@@ -3,21 +3,22 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  root: command === 'build' ? resolve(__dirname, 'src') : undefined,
   plugins: [
     react(),
-    viteStaticCopy({
+    ...(command === 'build' ? [viteStaticCopy({
       targets: [
         {
-          src: 'public/manifest.json',
+          src: '../public/manifest.json',
           dest: '.',
         },
         {
-          src: 'public/icons/*',
+          src: '../public/icons/*',
           dest: 'icons',
         },
       ],
-    }),
+    })] : []),
   ],
   resolve: {
     alias: {
@@ -25,8 +26,12 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: 'dist',
+    outDir: resolve(__dirname, 'dist'),
     emptyOutDir: true,
+    // The manifest and icons are copied explicitly below. Do not let Vite
+    // copy the whole public/ directory into the production extension.
+    copyPublicDir: false,
+    sourcemap: false,
     rollupOptions: {
       input: {
         popup: resolve(__dirname, 'src/popup/index.html'),
@@ -54,4 +59,4 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.{test,spec}.{ts,tsx}'],
   },
-});
+}));

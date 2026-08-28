@@ -28,7 +28,7 @@
     "type": "module"
   },
   "action": {
-    "default_popup": "src/popup/index.html",
+      "default_popup": "popup/index.html",
     "default_title": "MemShift",
     "default_icon": {
       "16": "icons/icon-16.png",
